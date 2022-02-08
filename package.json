@@ -17,6 +17,7 @@
     "axios": "^0.25.0",
     "canvas-datagrid": "^0.4.2",
     "element-ui": "^2.15.6",
+    "jquery": "^3.6.0",
     "qs": "^6.10.3",
     "vue": "^2.5.2",
     "vue-excelview": "^1.0.7",

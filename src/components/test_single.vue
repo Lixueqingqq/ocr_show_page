@@ -32,16 +32,17 @@
       </el-row>
       <el-card class="box-card">
         <p v-show="resultShowType == 1" v-for="(item, index) in resultText" :key="index">{{item}}</p>
-        <excelview v-show="resultShowType == 2" :datas="excelData" />
+        <excel-view v-show="resultShowType == 2" ref="excel" />
       </el-card>
     </div>
   </div>
 </template>
 
 <script>
-  import excelview from 'vue-excelview'
+  // import excelview from 'vue-excelview'
+  import ExcelView from '@/components/ExcelView'
   export default {
-    components: {excelview},
+    components: {ExcelView},
     data() {
       return {
         multiple: false,
@@ -62,7 +63,8 @@
           this.resultText = this.checkResult.content;
           this.fileList = [file];
           this.changeImage('image')
-          this.getExcelData(this.checkResult.table)
+          this.$refs.excel.setExcelData(this.checkResult.table)
+          // this.getExcelData(this.checkResult.table)
         }
       },
       changeImage(filed) {
