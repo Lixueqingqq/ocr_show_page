@@ -46,14 +46,14 @@
         <el-button type="success" @click="changeResult(1)">text</el-button>
         <el-button type="warning" @click="changeResult(2)">table</el-button>
       </el-row>
-      <el-card class="box-card">
+      <el-card class="box-card" ref="card">
         <div v-show="resultShowType == 1">
           <p v-for="(item, index) in resultText" :key="index">{{item}}</p>
         </div>
         
-        <el-carousel v-if="checkResult.table" v-show="resultShowType == 2" :interval="5000" arrow="always" trigger="click" :autoplay=false>
-          <el-carousel-item v-for="(item,index) in checkResult.table.length" :key="index">
-            <excelview :datas="excelData[index]" />
+        <el-carousel v-show="resultShowType == 2" :interval="5000" arrow="always" trigger="click" :autoplay="false" @change="changeExcel">
+          <el-carousel-item v-for="(item,index) in excelData" :key="index">
+            <excel-view :height="height" :width="width" :ref="'excel' + index" :id="'luckysheet' + index" />
           </el-carousel-item>
         </el-carousel>
       </el-card>
@@ -62,9 +62,9 @@
 </template>
 
 <script>
-  import excelview from 'vue-excelview'
+  import ExcelView from '@/components/ExcelView'
   export default {
-    components: {excelview},
+    components: {ExcelView},
     data() {
       return {
         multiple: false,
@@ -77,11 +77,14 @@
         resultShowType: 1,
         resultText: [],
         checkResult: {},
+        height: '',
+        width: '',
         excelData: []
       }
     },
     mounted() {
-
+      this.height = this.$refs.card.$el.clientHeight - 40 + 'px'
+      this.width = this.$refs.card.$el.clientWidth - 40 + 'px'
     },
     methods: {
       handleAvatarSuccess(response, file, fileList) {
@@ -100,28 +103,20 @@
             })
           }
           this.imgTable = response.tabel_detect_image
-          this.getExcel(response.table)
+          this.excelData = response.table
+          setTimeout(() => {
+            this.$refs.excel0.setExcelData(this.excelData[0])
+          }, 500);
         }
+      },
+      changeExcel(index) {
+        this.$refs['excel' + index][0].setExcelData(this.excelData[index])
       },
       changeImage(type) {
         this.imgSrcType = type
       },
       changeResult(type) {
         this.resultShowType = type
-      },
-      getExcel(list) {
-        this.excelData = []
-        for(let i=0; i < list.length; i++) {
-          this.getExcelData(list[i])
-        }
-      },
-      getExcelData(url) {
-        this.$axios.get(url, {
-          responseType: 'arraybuffer'
-        })
-        .then((res) => {
-           this.excelData.push(res.data)
-        })
       },
       checkResultComment(src,type, index) {
         this.$axios.post("/api/download", {

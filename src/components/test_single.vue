@@ -30,16 +30,15 @@
         <el-button type="success" @click="changeResult(1)">text</el-button>
         <el-button type="warning" @click="changeResult(2)">table</el-button>
       </el-row>
-      <el-card class="box-card">
+      <el-card class="box-card" ref="card">
         <p v-show="resultShowType == 1" v-for="(item, index) in resultText" :key="index">{{item}}</p>
-        <excel-view v-show="resultShowType == 2" ref="excel" />
+        <excel-view :height="height" :width="width" v-show="resultShowType == 2" ref="excel" />
       </el-card>
     </div>
   </div>
 </template>
 
 <script>
-  // import excelview from 'vue-excelview'
   import ExcelView from '@/components/ExcelView'
   export default {
     components: {ExcelView},
@@ -51,10 +50,14 @@
         resultShowType: 1,
         resultText: [],
         checkResult: {},
-        excelData: null
+        excelData: null,
+        height: '',
+        width: ''
       }
     },
     mounted() {
+      this.height = this.$refs.card.$el.clientHeight - 40 + 'px'
+      this.width = this.$refs.card.$el.clientWidth - 40 + 'px'
     },
     methods: {
       handleAvatarSuccess(response, file, fileList) {
@@ -64,7 +67,6 @@
           this.fileList = [file];
           this.changeImage('image')
           this.$refs.excel.setExcelData(this.checkResult.table)
-          // this.getExcelData(this.checkResult.table)
         }
       },
       changeImage(filed) {
@@ -72,14 +74,6 @@
       },
       changeResult(type) {
         this.resultShowType = type
-      },
-      getExcelData(url) {
-        this.$axios.get(url, {
-          responseType: 'arraybuffer'
-        })
-        .then((res) => {
-          this.excelData = res.data
-        })
       }
     }
   }
@@ -103,10 +97,14 @@
   width: 90%;
   height: 600px;
   border: 1px solid #f1f1f1;
-  overflow: scroll;
+  overflow: auto;
 }
 .el-image {
   width: 100%;
   height: 100%;
+}
+/deep/ .el-card__body {
+  height: 100%;
+  box-sizing: border-box
 }
 </style>
