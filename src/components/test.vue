@@ -53,7 +53,8 @@
         
         <el-carousel v-if="checkResult.table" v-show="resultShowType == 2" :interval="5000" arrow="always" trigger="click" :autoplay=false>
           <el-carousel-item v-for="(item,index) in checkResult.table.length" :key="index">
-            <excelview :datas="excelData[index]" />
+            <!-- <excelview :datas="excelData[index]" /> -->
+            <lucky-excel v-if="resultShowType == 2" :url="excelData[index]"/>
           </el-carousel-item>
         </el-carousel>
       </el-card>
@@ -62,9 +63,11 @@
 </template>
 
 <script>
-  import excelview from 'vue-excelview'
+  // import excelview from 'vue-excelview'
+  import LuckyExcel from './LuckyExcel.vue';
   export default {
-    components: {excelview},
+    // components: {excelview, LuckyExcel},
+    components: { LuckyExcel},
     data() {
       return {
         multiple: false,
@@ -100,6 +103,7 @@
             })
           }
           this.imgTable = response.tabel_detect_image
+          console.log(response.table);
           this.getExcel(response.table)
         }
       },
@@ -112,7 +116,8 @@
       getExcel(list) {
         this.excelData = []
         for(let i=0; i < list.length; i++) {
-          this.getExcelData(list[i])
+          this.excelData.push(list[i])
+          // this.getExcelData(list[i])
         }
       },
       getExcelData(url) {
