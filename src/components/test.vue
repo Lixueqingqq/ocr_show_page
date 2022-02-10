@@ -104,8 +104,9 @@
           }
           this.imgTable = response.tabel_detect_image
           this.excelData = response.table
+          let that = this
           setTimeout(() => {
-            this.$refs.excel0.setExcelData(this.excelData[0])
+            that.$refs.excel0[0].setExcelData(this.excelData[0])
           }, 500);
         }
       },
