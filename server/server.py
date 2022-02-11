@@ -50,34 +50,53 @@ def upload():
         imglist.sort()
         pass
     #print('imglisttttt:',imglist)
-    content_ = []
+    content = []
     table_ = []
     SrcImg = []
     TextImg = []
     TabImg = []
+    content = []
     for imi,img_name in enumerate(imglist):
         content_info,tab_info,boder_table_info = img2text(img_name,temp_file_path,imi=imi,Image_enhancement=True,Image_direction=True,Image_deseal=True,\
                                                         Tab_detect=True,BorderlessTab_detect=False,\
                                                         Qrcode_detect=False,Clear_tmp=False,fan2jian=False)
-        if content_info:
-            page_line_index=[int(x.split('_')[-1]) for x in content_info['page_line']]
-            index = np.argsort(page_line_index)
-            for ii in index:
-                content_.append(content_info['text'][ii])
-
+        content_ = []
+        table_content_ = []
+        table_pose_y = []
         if tab_info:
             xlspath = os.path.join(process_path, str(imi) + '.xlsx')
             dict2xls(tab_info, xlspath)
-            # for itt,tab_info_ in enumerate(tab_info):
-            #     for info_k in tab_info_.keys():
-            #         for c_i, col_info in enumerate(tab_info_[info_k]):
-            #             content_.append(tab_info_[info_k][c_i]["text"])
+            for itt,tab_info_ in enumerate(tab_info):
+                table_pose_y.append(tab_info_['row_1'][0]['cell_pos'][-1])
+                table_content_.append({"type":1,"content":f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1],"name":'Tab_'+str(itt)})
 
 
         if boder_table_info:
             for ittb,bodertab_info in enumerate(boder_table_info):
-                content_.append(bodertab_info['col_left']['text'])
-                content_.append(bodertab_info['col_right']['text'])
+                boder_content_ = []
+                boder_content_.append(bodertab_info['col_left']['text'])
+                boder_content_.append(bodertab_info['col_right']['text'])
+                table_pose_y.append(bodertab_info['col_left']['text_img_pos'][-1])
+                table_content_.append({"type":0,"content":'\n'.join(boder_content_),"name":''})
+        
+        if table_pose_y:
+            t_index = np.argsort(np.array(table_pose_y))
+        else:
+            t_index = []
+
+        if content_info:
+            page_line_index=[int(x.split('_')[-1]) for x in content_info['page_line']]
+            index = np.argsort(page_line_index)
+            flag = -1
+            for ii in index:
+                for t_i in t_index:
+                    if t_i>flag and content_info['text_img_pos'][ii][1]>table_pose_y[t_i]:
+                        content_.append(table_content_[t_i])
+                        flag = flag + 1
+                content_.append({"type":0,"content":content_info['text'][ii],"name":''})
+
+        content.append(content_)       
+
 
         shutil.move(img_name,os.path.join(process_path,os.path.split(img_name)[-1]))
         SrcImg.append(f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(img_name)[-1])
@@ -89,7 +108,7 @@ def upload():
 
     return jsonify({"code": 0,
                     "msg": 'success',
-                    "content":content_,
+                    "content":content,
                     "table": table_,
                     "image": SrcImg,
                     "text_detect_image":TextImg,
