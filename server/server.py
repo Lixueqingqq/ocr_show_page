@@ -61,14 +61,13 @@ def upload():
                                                         Tab_detect=True,BorderlessTab_detect=False,\
                                                         Qrcode_detect=False,Clear_tmp=False,fan2jian=False)
         content_ = []
-        table_content_ = []
-        table_pose_y = []
+        page_line_list = []
         if tab_info:
             xlspath = os.path.join(process_path, str(imi) + '.xlsx')
             dict2xls(tab_info, xlspath)
             for itt,tab_info_ in enumerate(tab_info):
-                table_pose_y.append(tab_info_['row_1'][0]['cell_pos'][-1])
-                table_content_.append({"type":1,"content":f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1],"name":'Tab_'+str(itt)})
+                page_line_list.append(int(tab_info_['row_1'][0]['page_line'][0].split('_')[-1]))
+                content_.append({"type":1,"content":f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1],"name":'Tab_'+str(itt)})
 
 
         if boder_table_info:
@@ -76,24 +75,18 @@ def upload():
                 boder_content_ = []
                 boder_content_.append(bodertab_info['col_left']['text'])
                 boder_content_.append(bodertab_info['col_right']['text'])
-                table_pose_y.append(bodertab_info['col_left']['text_img_pos'][-1])
-                table_content_.append({"type":0,"content":'\n'.join(boder_content_),"name":''})
+                page_line_list.append(int(bodertab_info['col_left']['page_line'][0].split('_')[-1]))
+                content_.append({"type":0,"content":'\n'.join(boder_content_),"name":''})
         
-        if table_pose_y:
-            t_index = np.argsort(np.array(table_pose_y))
-        else:
-            t_index = []
-
+    
         if content_info:
             page_line_index=[int(x.split('_')[-1]) for x in content_info['page_line']]
-            index = np.argsort(page_line_index)
-            flag = -1
-            for ii in index:
-                for t_i in t_index:
-                    if t_i>flag and content_info['text_img_pos'][ii][1]>table_pose_y[t_i]:
-                        content_.append(table_content_[t_i])
-                        flag = flag + 1
+            page_line_list.extend(page_line_index)
+            for ii in range(len(content_info['text'])):
                 content_.append({"type":0,"content":content_info['text'][ii],"name":''})
+
+        index = sorted(range(0,len(page_line_list)),key=lambda k:page_line_list[k])
+        content_ = [content_[id] for id in index]
 
         content.append(content_)       
 
