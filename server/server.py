@@ -60,13 +60,22 @@ def upload():
         content_info,tab_info,boder_table_info = img2text(img_name,temp_file_path,imi=imi,Image_enhancement=True,Image_direction=True,Image_deseal=True,\
                                                         Tab_detect=True,BorderlessTab_detect=False,\
                                                         Qrcode_detect=False,Clear_tmp=False,fan2jian=False)
+        
         content_ = []
         page_line_list = []
         if tab_info:
             xlspath = os.path.join(process_path, str(imi) + '.xlsx')
             dict2xls(tab_info, xlspath)
             for itt,tab_info_ in enumerate(tab_info):
-                page_line_list.append(int(tab_info_['row_1'][0]['page_line'][0].split('_')[-1]))
+                page_line_flag = False
+                for row_k in tab_info_:
+                    for c_i,col_info in enumerate(tab_info_[row_k]):
+                        if len(col_info['page_line'])>0:
+                            page_line_list.append(int(tab_info_[row_k][c_i]['page_line'][0].split('_')[-1]))
+                            page_line_flag = True
+                            break
+                    if page_line_flag:
+                        break
                 content_.append({"type":1,"content":f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1],"name":'Tab_'+str(itt)})
 
 
