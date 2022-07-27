@@ -1,143 +1,254 @@
-from flask import Flask, jsonify, request, send_file,render_template
-#from werkzeug.utils import secure_filename
-from util import  dict2xls,secure_filename
+from flask import Flask, jsonify, request, send_file, render_template
+# from werkzeug.utils import secure_filename
+from util import dict2xls, secure_filename
 from flask_cors import CORS
 import numpy as np
 import time
 import os
-from ocr_sdk.files2image.file2img import file2img
+from ocr_sdk.files2image.file2img import file2img, tif2jpgs
 from ocr_sdk.image_to_text.img2text import img2text
 import urllib
 import shutil
+from idcard import idcard
+from bls import BusiLicense
 
 FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'files')
 os.makedirs(FILE_PATH, exist_ok=True)
-GOOD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"good_case")
+GOOD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "good_case")
 os.makedirs(GOOD_PATH, exist_ok=True)
-BAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"bad_case")
+BAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bad_case")
 os.makedirs(BAD_PATH, exist_ok=True)
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)),'static'),template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)),'dist'))
-#app.config["JSON_AS_ASCII"]=False
-CORS(app,supports_credetials=True)
+app = Flask(__name__, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static'),
+            template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist'))
+# app.config["JSON_AS_ASCII"]=False
+CORS(app, supports_credetials=True)
+
 
 @app.route('/api/upload', methods=['POST'])
 def upload():
+  file = request.files['file']
+  uni_id = str(time.time())
+  temp_file_path = os.path.join(FILE_PATH, uni_id)
+  if not os.path.exists(temp_file_path):
+    os.makedirs(temp_file_path)
+  aa = urllib.parse.urlparse(request.url)
+  org_file_path = os.path.join(temp_file_path, 'orgfile')
+  if not os.path.exists(org_file_path):
+    os.makedirs(org_file_path)
+
+  process_path = os.path.join(temp_file_path, 'process')
+  if not os.path.exists(process_path):
+    os.makedirs(process_path)
+
+  filename = secure_filename(file.filename)
+  # print('fiiii:',filename)
+  file.save(os.path.join(org_file_path, filename))
+  if filename.endswith('.pdf') or filename.endswith('.PDF'):
+    file_folder = file2img(os.path.join(org_file_path, filename), temp_file_path)[0]
+    imglist = [os.path.join(file_folder, 'image', page) for page in os.listdir(os.path.join(file_folder, 'image'))]
+  elif filename.endswith('.tif') or filename.endswith('.tiff'):
+    tifpath = os.path.join(temp_file_path, 'image')
+    if not os.path.exists(tifpath):
+      os.makedirs(tifpath)
+    if tif2jpgs(os.path.join(org_file_path, filename), tifpath):
+      print('convert tif success')
+      imglist = [os.path.join(tifpath, tif) for tif in os.listdir(tifpath)]
+  else:
+    imglist = [os.path.join(org_file_path, filename)]
+  try:
+    imglist.sort(key=lambda x: int(os.path.splitext(x)[0].split('_')[-1]))
+  except:
+    imglist.sort()
+    pass
+  # print('imglisttttt:',imglist)
+  content = []
+  table_ = []
+  SrcImg = []
+  TextImg = []
+  TabImg = []
+  content = []
+  for imi, img_name in enumerate(imglist):
+    content_info, tab_info, boder_table_info = img2text(img_name, temp_file_path, imi=imi, Image_enhancement=False,
+                                                        Image_direction=False, Image_deseal=False, \
+                                                        Tab_detect=True, BorderlessTab_detect=False, \
+                                                        Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+
+    content_ = []
+    page_line_list = []
+    if tab_info:
+      xlspath = os.path.join(process_path, str(imi) + '.xlsx')
+      dict2xls(tab_info, xlspath)
+      for itt, tab_info_ in enumerate(tab_info):
+        page_line_flag = False
+        for row_k in tab_info_:
+          for c_i, col_info in enumerate(tab_info_[row_k]):
+            if len(col_info['page_line']) > 0:
+              page_line_list.append(int(tab_info_[row_k][c_i]['page_line'][0].split('_')[-1]))
+              page_line_flag = True
+              break
+          if page_line_flag:
+            break
+        content_.append({"type": 1, "content": f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(xlspath)[-1],
+                         "name": 'Tab_' + str(itt)})
+
+    if boder_table_info:
+      for ittb, bodertab_info in enumerate(boder_table_info):
+        boder_content_ = []
+        boder_content_.append(bodertab_info['col_left']['text'])
+        boder_content_.append(bodertab_info['col_right']['text'])
+        page_line_list.append(int(bodertab_info['col_left']['page_line'][0].split('_')[-1]))
+        content_.append({"type": 0, "content": '\n'.join(boder_content_), "name": ''})
+
+    if content_info:
+      page_line_index = [int(x.split('_')[-1]) for x in content_info['page_line']]
+      page_line_list.extend(page_line_index)
+      for ii in range(len(content_info['text'])):
+        content_.append({"type": 0, "content": content_info['text'][ii], "name": ''})
+
+    index = sorted(range(0, len(page_line_list)), key=lambda k: page_line_list[k])
+    content_ = [content_[id] for id in index]
+
+    content.append(content_)
+
+    shutil.move(img_name, os.path.join(process_path, os.path.split(img_name)[-1]))
+    SrcImg.append(f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(img_name)[-1])
+    TextImg.append(f'//{aa.netloc}/files/{uni_id}/process/' + str(imi) + '_result.jpg')
+
+    if tab_info or boder_table_info:
+      table_.append(f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(xlspath)[-1])
+      TabImg.append(f'//{aa.netloc}/files/{uni_id}/process/' + str(imi) + '_tabcell.jpg')
+
+  return jsonify({"code": 0,
+                  "msg": 'success',
+                  "content": content,
+                  "table": table_,
+                  "image": SrcImg,
+                  "text_detect_image": TextImg,
+                  "tabel_detect_image": TabImg
+                  })
+
+
+@app.route('/api/upload_IDapp', methods=['POST'])
+def uploadId():
     file = request.files['file']
     uni_id = str(time.time())
     temp_file_path = os.path.join(FILE_PATH, uni_id)
     if not os.path.exists(temp_file_path):
         os.makedirs(temp_file_path)
     aa = urllib.parse.urlparse(request.url)
-    org_file_path = os.path.join(temp_file_path,'orgfile')
+    org_file_path = os.path.join(temp_file_path, 'orgfile')
     if not os.path.exists(org_file_path):
         os.makedirs(org_file_path)
 
-    process_path = os.path.join(temp_file_path,'process')
+    process_path = os.path.join(temp_file_path, 'process')
     if not os.path.exists(process_path):
         os.makedirs(process_path)
 
     filename = secure_filename(file.filename)
-    #print('fiiii:',filename)
+    # print('fiiii:',filename)
     file.save(os.path.join(org_file_path, filename))
-    if filename.endswith('.pdf') or filename.endswith('.PDF'):
-        file_folder = file2img(os.path.join(org_file_path, filename),temp_file_path)[0]
-        imglist = [os.path.join(file_folder,'image',page) for page in os.listdir(os.path.join(file_folder,'image'))]
-    else:
-        imglist = [os.path.join(org_file_path, filename)]
-    try:
-        imglist.sort(key=lambda x:int(os.path.splitext(x)[0].split('_')[-1]))
-    except:
-        imglist.sort()
-        pass
-    #print('imglisttttt:',imglist)
+    imgpath = os.path.join(org_file_path, filename)
+    content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
+                                                        Image_direction=False, Image_deseal=False, \
+                                                        Tab_detect=False, BorderlessTab_detect=False, \
+                                                        Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+    if content_info:
+        IDparse = idcard(content_info)
+        result = IDparse.parse_strcture()
     content = []
-    table_ = []
-    SrcImg = []
-    TextImg = []
-    TabImg = []
-    content = []
-    for imi,img_name in enumerate(imglist):
-        content_info,tab_info,boder_table_info = img2text(img_name,temp_file_path,imi=imi,Image_enhancement=True,Image_direction=True,Image_deseal=True,\
-                                                        Tab_detect=True,BorderlessTab_detect=False,\
-                                                        Qrcode_detect=False,Clear_tmp=False,fan2jian=False)
-        
-        content_ = []
-        page_line_list = []
-        if tab_info:
-            xlspath = os.path.join(process_path, str(imi) + '.xlsx')
-            dict2xls(tab_info, xlspath)
-            for itt,tab_info_ in enumerate(tab_info):
-                page_line_flag = False
-                for row_k in tab_info_:
-                    for c_i,col_info in enumerate(tab_info_[row_k]):
-                        if len(col_info['page_line'])>0:
-                            page_line_list.append(int(tab_info_[row_k][c_i]['page_line'][0].split('_')[-1]))
-                            page_line_flag = True
-                            break
-                    if page_line_flag:
-                        break
-                content_.append({"type":1,"content":f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1],"name":'Tab_'+str(itt)})
+    for kk in result:
+        content.append(kk+': '+result[kk])
 
-
-        if boder_table_info:
-            for ittb,bodertab_info in enumerate(boder_table_info):
-                boder_content_ = []
-                boder_content_.append(bodertab_info['col_left']['text'])
-                boder_content_.append(bodertab_info['col_right']['text'])
-                page_line_list.append(int(bodertab_info['col_left']['page_line'][0].split('_')[-1]))
-                content_.append({"type":0,"content":'\n'.join(boder_content_),"name":''})
-        
-    
-        if content_info:
-            page_line_index=[int(x.split('_')[-1]) for x in content_info['page_line']]
-            page_line_list.extend(page_line_index)
-            for ii in range(len(content_info['text'])):
-                content_.append({"type":0,"content":content_info['text'][ii],"name":''})
-
-        index = sorted(range(0,len(page_line_list)),key=lambda k:page_line_list[k])
-        content_ = [content_[id] for id in index]
-
-        content.append(content_)       
-
-
-        shutil.move(img_name,os.path.join(process_path,os.path.split(img_name)[-1]))
-        SrcImg.append(f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(img_name)[-1])
-        TextImg.append(f'//{aa.netloc}/files/{uni_id}/process/'+str(imi)+'_result.jpg')
-
-        if tab_info:
-            table_.append(f'//{aa.netloc}/files/{uni_id}/process/'+os.path.split(xlspath)[-1])
-            TabImg.append(f'//{aa.netloc}/files/{uni_id}/process/'+str(imi)+'_tabcell.jpg')
+    shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
+    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
 
     return jsonify({"code": 0,
                     "msg": 'success',
-                    "content":content,
-                    "table": table_,
+                    "result": content,
                     "image": SrcImg,
-                    "text_detect_image":TextImg,
-                    "tabel_detect_image":TabImg
+                    "text_detect_image": TextImg
                     })
+
+
+@app.route('/api/upload_BISapp', methods=['POST'])
+def uploadBis():
+    file = request.files['file']
+    uni_id = str(time.time())
+    temp_file_path = os.path.join(FILE_PATH, uni_id)
+    if not os.path.exists(temp_file_path):
+        os.makedirs(temp_file_path)
+    aa = urllib.parse.urlparse(request.url)
+    org_file_path = os.path.join(temp_file_path, 'orgfile')
+    if not os.path.exists(org_file_path):
+        os.makedirs(org_file_path)
+
+    process_path = os.path.join(temp_file_path, 'process')
+    if not os.path.exists(process_path):
+        os.makedirs(process_path)
+
+    filename = secure_filename(file.filename)
+    # print('fiiii:',filename)
+    file.save(os.path.join(org_file_path, filename))
+    imgpath = os.path.join(org_file_path, filename)
+    content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
+                                                        Image_direction=False, Image_deseal=False, \
+                                                        Tab_detect=False, BorderlessTab_detect=False, \
+                                                        Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+    if content_info:
+      IDparse = BusiLicense(content_info)
+      result = IDparse.parse_strcture()
+    content = []
+    for kk in result:
+      if kk == '经营范围':
+        continue
+      content.append(kk+': '+result[kk])
+
+    shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
+    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
+
+    return jsonify({"code": 0,
+                    "msg": 'success',
+                    "result": content,
+                    "image": SrcImg,
+                    "text_detect_image": TextImg
+                    })
+
 
 @app.route("/files/<uni_id>/process/<file>")
 def files(uni_id, file):
-    # import ipdb;ipdb.set_trace()
-    abs_file = os.path.join(FILE_PATH,uni_id, "process", file)
-    return send_file(abs_file, as_attachment=True)
+  # import ipdb;ipdb.set_trace()
+  abs_file = os.path.join(FILE_PATH, uni_id, "process", file)
+  return send_file(abs_file, as_attachment=True)
+
 
 @app.route('/api/download', methods=['POST'])
 def download():
-    data = request.json
-    if data["type"] == 1:
-        #print(data["file"].split('files/')[-1])
-        shutil.copy(os.path.join(FILE_PATH,data["file"].split('files/')[-1]),os.path.join(GOOD_PATH,str(len(os.listdir(GOOD_PATH)))+"g_"+os.path.split(data["file"])[-1]))
-    if data["type"] == 2:
-        #print(data["file"].split('files/')[-1])
-        shutil.copy(os.path.join(FILE_PATH,data["file"].split('files/')[-1]),os.path.join(BAD_PATH,str(len(os.listdir(BAD_PATH)))+"b_"+os.path.split(data["file"])[-1]))
-    return jsonify({"code": 0})
+  data = request.json
+  if data["type"] == 1:
+    # print(data["file"].split('files/')[-1])
+    shutil.copy(os.path.join(FILE_PATH, data["file"].split('files/')[-1]),
+                os.path.join(GOOD_PATH, str(len(os.listdir(GOOD_PATH))) + "g_" + os.path.split(data["file"])[-1]))
+  if data["type"] == 2:
+    # print(data["file"].split('files/')[-1])
+    shutil.copy(os.path.join(FILE_PATH, data["file"].split('files/')[-1]),
+                os.path.join(BAD_PATH, str(len(os.listdir(BAD_PATH))) + "b_" + os.path.split(data["file"])[-1]))
+  return jsonify({"code": 0})
 
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+  return render_template('index.html')
+
+@app.route('/appid')
+def index_appid():
+  return render_template('index.html')
+#
+@app.route('/appbis')
+def index_appbis():
+  return render_template('index.html')
+
 
 # @app.route('/static/css/<file>')
 # def css_file(file):
@@ -150,4 +261,4 @@ def index():
 #     return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'fonts', file),as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3555, debug=True)
+  app.run(host='0.0.0.0', port=3555, debug=True)
