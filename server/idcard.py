@@ -5,6 +5,7 @@
 # @Time: 7月 25, 2022
 # ---
 import re
+import numpy as np
 
 class idcard:
     """
@@ -110,15 +111,67 @@ class idcard:
         return self.res
 
 
+class idcard_b:
+  def __init__(self, text_info):
+    self.text_info = text_info
+    self.res = {
+      '签发机关': '',
+      '签发日期': '',
+      '失效日期': ''
+    }
+
+  def groupbox(self):
+    texts = []
+    pos = []
+    line = [self.text_info['text_img_pos'][0]]
+    tt = [self.text_info['text'][0]]
+    for box_id, box in enumerate(self.text_info['text_img_pos'][1:]):
+      # 如果两行中心高低差低于行高的0.1倍，则认为是同一行
+      if abs((box[1] + box[3]) / 2 - (line[-1][1] + line[-1][3]) / 2) < \
+        min(box[3] - box[1], line[-1][3] - line[-1][1]) * 0.3:
+        line.append(box)
+        tt.append(self.text_info['text'][box_id+1])
+      else:
+        xline = np.array([x[0] for x in line])
+        sort_index = np.argsort(xline)
+        texts.append(''.join([tt[i] for i in sort_index]))
+        pos.append([line[sort_index[0]][0], line[sort_index[0]][1], line[sort_index[-1]][2], line[sort_index[-1]][3]])
+        line = [box]
+        tt = [self.text_info['text'][box_id+1]]
+    if len(line) > 0:
+      xline = np.array([x[0] for x in line])
+      sort_index = np.argsort(xline)
+      texts.append(''.join([tt[i] for i in sort_index]))
+      pos.append([line[sort_index[0]][0], line[sort_index[0]][1], line[sort_index[-1]][2], line[sort_index[-1]][3]])
+    return texts, pos
+
+  def parse_strcture(self):
+    texts,pos = self.groupbox()
+    for t in texts:
+      if '签发机关' in t:
+        self.res['签发机关'] = t.replace('签发机关','')
+      if '有效期限' in t:
+        res = re.findall('\d{4}(?:.)\d{1,2}(?:.)\d{1,2}',t)
+        if len(res)>=2:
+          self.res['签发日期'] = res[0]
+          self.res['失效日期'] = res[1]
+    return self.res
+
+
+
 if __name__ == '__main__':
     from ocr_sdk.image_to_text.img2text import img2text
     temp_file_path = r'D:\tmp\ocr_sdk'
-    imgpath = r'C:\Users\admin\Desktop\images (1).jpg'
+    imgpath = r'C:\Users\admin\Desktop\apply_test\id\9C1B97A36FD34DA9990BA30010724463.jpg'
     content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
                                                      Image_direction=False, Image_deseal=False, \
                                                      Tab_detect=False, BorderlessTab_detect=False, \
                                                      Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+    # if content_info:
+    #     IDparse = idcard(content_info)
+    #     result = IDparse.parse_strcture()
+    #     print(result)
     if content_info:
-        IDparse = idcard(content_info)
+        IDparse = idcard_b(content_info)
         result = IDparse.parse_strcture()
         print(result)

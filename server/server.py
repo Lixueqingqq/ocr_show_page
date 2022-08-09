@@ -7,10 +7,12 @@ import time
 import os
 from ocr_sdk.files2image.file2img import file2img, tif2jpgs
 from ocr_sdk.image_to_text.img2text import img2text
+from ocr_sdk import face_detect
 import urllib
 import shutil
-from idcard import idcard
+from idcard import idcard,idcard_b
 from bls import BusiLicense
+import cv2
 
 FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'files')
 os.makedirs(FILE_PATH, exist_ok=True)
@@ -135,7 +137,7 @@ def uploadId():
     temp_file_path = os.path.join(FILE_PATH, uni_id)
     if not os.path.exists(temp_file_path):
         os.makedirs(temp_file_path)
-    aa = urllib.parse.urlparse(request.url)
+    #aa = urllib.parse.urlparse(request.url)
     org_file_path = os.path.join(temp_file_path, 'orgfile')
     if not os.path.exists(org_file_path):
         os.makedirs(org_file_path)
@@ -145,29 +147,45 @@ def uploadId():
         os.makedirs(process_path)
 
     filename = secure_filename(file.filename)
-    # print('fiiii:',filename)
-    file.save(os.path.join(org_file_path, filename))
     imgpath = os.path.join(org_file_path, filename)
+    # print('fiiii:',filename)
+    ###################去掉透明边操作#####################
+    # image_encode = file.read()
+    # image_buff = np.frombuffer(image_encode, np.uint8)
+    # image = cv2.imdecode(image_buff, -1)
+    # y, x = np.where(image[:, :, -1] > 0)
+    # xmin = np.min(x)
+    # xmax = np.max(x)
+    # ymin = np.min(y)
+    # ymax = np.max(y)
+    # cv2.imwrite(imgpath, image[ymin:ymax,xmin:xmax,:])
+    #################################################################
+    file.save(imgpath)
+    boxes,_,_ = face_detect(imgpath)
     content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
                                                         Image_direction=False, Image_deseal=False, \
                                                         Tab_detect=False, BorderlessTab_detect=False, \
                                                         Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
     if content_info:
+      if len(boxes)>0:
         IDparse = idcard(content_info)
+        result = IDparse.parse_strcture()
+      else:
+        IDparse = idcard_b(content_info)
         result = IDparse.parse_strcture()
     content = []
     for kk in result:
         content.append(kk+': '+result[kk])
 
-    shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
-    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
-    TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
+    #shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
+    #SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    #TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
 
     return jsonify({"code": 0,
-                    "msg": 'success',
-                    "result": content,
-                    "image": SrcImg,
-                    "text_detect_image": TextImg
+                    # "msg": 'success',
+                    "result": result,
+                    # "image": SrcImg,
+                    # "text_detect_image": TextImg
                     })
 
 
@@ -178,7 +196,7 @@ def uploadBis():
     temp_file_path = os.path.join(FILE_PATH, uni_id)
     if not os.path.exists(temp_file_path):
         os.makedirs(temp_file_path)
-    aa = urllib.parse.urlparse(request.url)
+    #aa = urllib.parse.urlparse(request.url)
     org_file_path = os.path.join(temp_file_path, 'orgfile')
     if not os.path.exists(org_file_path):
         os.makedirs(org_file_path)
@@ -188,9 +206,20 @@ def uploadBis():
         os.makedirs(process_path)
 
     filename = secure_filename(file.filename)
-    # print('fiiii:',filename)
-    file.save(os.path.join(org_file_path, filename))
     imgpath = os.path.join(org_file_path, filename)
+    # print('fiiii:',filename)
+    ###################去掉透明边操作#####################
+    # image_encode = file.read()
+    # image_buff = np.frombuffer(image_encode, np.uint8)
+    # image = cv2.imdecode(image_buff, -1)
+    # y, x = np.where(image[:, :, -1] > 0)
+    # xmin = np.min(x)
+    # xmax = np.max(x)
+    # ymin = np.min(y)
+    # ymax = np.max(y)
+    # cv2.imwrite(imgpath, image[ymin:ymax, xmin:xmax, :])
+    #################################################################
+    file.save(imgpath)
     content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
                                                         Image_direction=False, Image_deseal=False, \
                                                         Tab_detect=False, BorderlessTab_detect=False, \
@@ -198,21 +227,18 @@ def uploadBis():
     if content_info:
       IDparse = BusiLicense(content_info)
       result = IDparse.parse_strcture()
-    content = []
-    for kk in result:
-      if kk == '经营范围':
-        continue
-      content.append(kk+': '+result[kk])
+    # content = []
+    # for kk in result:
+    #   if kk == '经营范围' or kk == '编号':
+    #     continue
+    #   content.append(kk+': '+result[kk])
 
     shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
-    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
-    TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
+    #SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    #TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
 
     return jsonify({"code": 0,
-                    "msg": 'success',
-                    "result": content,
-                    "image": SrcImg,
-                    "text_detect_image": TextImg
+                    "result": result,
                     })
 
 
@@ -248,6 +274,10 @@ def index_appid():
 @app.route('/appbis')
 def index_appbis():
   return render_template('index.html')
+
+@app.route('/CameraH5')
+def index_appCAM():
+  return render_template('cam_index.html')
 
 
 # @app.route('/static/css/<file>')
