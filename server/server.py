@@ -1,8 +1,7 @@
 from flask import Flask, jsonify, request, send_file, render_template
 # from werkzeug.utils import secure_filename
-from util import dict2xls, secure_filename
+from util import dict2xls, secure_filename,MyEncoder
 from flask_cors import CORS
-import numpy as np
 import time
 import os
 from ocr_sdk.files2image.file2img import file2img, tif2jpgs
@@ -12,7 +11,7 @@ import urllib
 import shutil
 from idcard import idcard,idcard_b
 from bls import BusiLicense
-import cv2
+import json
 
 FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'files')
 os.makedirs(FILE_PATH, exist_ok=True)
@@ -130,23 +129,53 @@ def upload():
                   })
 
 
+@app.route('/api/upload_ocr', methods=['POST'])
+def uploadOCR():
+  file = request.files['file']
+  filename = secure_filename(file.filename)
+  if os.path.splitext(filename)[-1].lower() not in ['.jpg','.jpeg','.bmp','.png']:
+    return jsonify({"code": 406, "result": "image format is not supported"})
+  uni_id = str(time.time())
+  temp_file_path = os.path.join(FILE_PATH, uni_id)
+  if not os.path.exists(temp_file_path):
+    os.makedirs(temp_file_path)
+  img = file.read()
+  imi = 0
+  result = {}
+  content_info, _, _ = img2text(img, temp_file_path, imi=imi, Image_enhancement=False,
+                                                      Image_direction=False, Image_deseal=False, \
+                                                      Tab_detect=False, BorderlessTab_detect=False, \
+                                                      Qrcode_detect=False, Clear_tmp=True, fan2jian=False)
+
+  if content_info:
+    if len(content_info['text'])>0:
+      result["text"] = content_info['text']
+      result["text_img_pos"] = content_info["text_img_pos"]
+      result["w"] = content_info["w"]
+      result["h"] = content_info["h"]
+
+  json_str = json.dumps({"code": 0, "result": result}, cls=MyEncoder, ensure_ascii=False)
+  return json_str
+
+
 @app.route('/api/upload_IDapp', methods=['POST'])
 def uploadId():
     file = request.files['file']
+    filename = secure_filename(file.filename)
+    if os.path.splitext(filename)[-1].lower() not in ['.jpg', '.jpeg', '.bmp', '.png']:
+      return jsonify({"code": 406, "result": "image format is not supported"})
     uni_id = str(time.time())
     temp_file_path = os.path.join(FILE_PATH, uni_id)
     if not os.path.exists(temp_file_path):
         os.makedirs(temp_file_path)
-    #aa = urllib.parse.urlparse(request.url)
+    aa = urllib.parse.urlparse(request.url)
     org_file_path = os.path.join(temp_file_path, 'orgfile')
     if not os.path.exists(org_file_path):
         os.makedirs(org_file_path)
-
-    process_path = os.path.join(temp_file_path, 'process')
-    if not os.path.exists(process_path):
-        os.makedirs(process_path)
-
-    filename = secure_filename(file.filename)
+    #
+    # process_path = os.path.join(temp_file_path, 'process')
+    # if not os.path.exists(process_path):
+    #     os.makedirs(process_path)
     imgpath = os.path.join(org_file_path, filename)
     # print('fiiii:',filename)
     ###################去掉透明边操作#####################
@@ -165,7 +194,7 @@ def uploadId():
     content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
                                                         Image_direction=False, Image_deseal=False, \
                                                         Tab_detect=False, BorderlessTab_detect=False, \
-                                                        Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+                                                        Qrcode_detect=False, Clear_tmp=True, fan2jian=False)
     if content_info:
       if len(boxes)>0:
         IDparse = idcard(content_info)
@@ -173,18 +202,18 @@ def uploadId():
       else:
         IDparse = idcard_b(content_info)
         result = IDparse.parse_strcture()
-    content = []
-    for kk in result:
-        content.append(kk+': '+result[kk])
+    # content = []
+    # for kk in result:
+    #     content.append(kk+': '+result[kk])
 
     #shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
-    #SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
     #TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
 
     return jsonify({"code": 0,
                     # "msg": 'success',
                     "result": result,
-                    # "image": SrcImg,
+                    "image": SrcImg,
                     # "text_detect_image": TextImg
                     })
 
@@ -192,20 +221,21 @@ def uploadId():
 @app.route('/api/upload_BISapp', methods=['POST'])
 def uploadBis():
     file = request.files['file']
+    filename = secure_filename(file.filename)
+    if os.path.splitext(filename)[-1].lower() not in ['.jpg', '.jpeg', '.bmp', '.png']:
+      return jsonify({"code": 406, "result": "image format is not supported"})
     uni_id = str(time.time())
     temp_file_path = os.path.join(FILE_PATH, uni_id)
     if not os.path.exists(temp_file_path):
         os.makedirs(temp_file_path)
-    #aa = urllib.parse.urlparse(request.url)
+    aa = urllib.parse.urlparse(request.url)
     org_file_path = os.path.join(temp_file_path, 'orgfile')
     if not os.path.exists(org_file_path):
         os.makedirs(org_file_path)
-
-    process_path = os.path.join(temp_file_path, 'process')
-    if not os.path.exists(process_path):
-        os.makedirs(process_path)
-
-    filename = secure_filename(file.filename)
+    #
+    # process_path = os.path.join(temp_file_path, 'process')
+    # if not os.path.exists(process_path):
+    #     os.makedirs(process_path)
     imgpath = os.path.join(org_file_path, filename)
     # print('fiiii:',filename)
     ###################去掉透明边操作#####################
@@ -223,7 +253,7 @@ def uploadBis():
     content_info, tab_info, boder_table_info = img2text(imgpath, temp_file_path, imi=0, Image_enhancement=False,
                                                         Image_direction=False, Image_deseal=False, \
                                                         Tab_detect=False, BorderlessTab_detect=False, \
-                                                        Qrcode_detect=False, Clear_tmp=False, fan2jian=True)
+                                                        Qrcode_detect=False, Clear_tmp=True, fan2jian=False)
     if content_info:
       IDparse = BusiLicense(content_info)
       result = IDparse.parse_strcture()
@@ -232,13 +262,19 @@ def uploadBis():
     #   if kk == '经营范围' or kk == '编号':
     #     continue
     #   content.append(kk+': '+result[kk])
+    result_ = {}
+    for kk in result:
+      if kk == '经营范围' or kk == '编号':
+        continue
+      result_[kk] = result[kk]
 
-    shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
-    #SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
+    #shutil.move(imgpath, os.path.join(process_path, os.path.split(imgpath)[-1]))
+    SrcImg = f'//{aa.netloc}/files/{uni_id}/process/' + os.path.split(imgpath)[-1]
     #TextImg = f'//{aa.netloc}/files/{uni_id}/process/' + '0_result.jpg'
 
     return jsonify({"code": 0,
-                    "result": result,
+                    "result": result_,
+                    "image": SrcImg,
                     })
 
 
@@ -267,13 +303,13 @@ def download():
 def index():
   return render_template('index.html')
 
-@app.route('/appid')
-def index_appid():
-  return render_template('index.html')
-#
-@app.route('/appbis')
-def index_appbis():
-  return render_template('index.html')
+# @app.route('/appid')
+# def index_appid():
+#   return render_template('index.html')
+# #
+# @app.route('/appbis')
+# def index_appbis():
+#   return render_template('index.html')
 
 @app.route('/CameraH5')
 def index_appCAM():

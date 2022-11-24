@@ -4,6 +4,7 @@ import os
 import re
 from openpyxl import Workbook,styles
 import numpy as np
+import json
 _filename_ascii_strip_re = re.compile(r"[^A-Za-z0-9_.-]")
 _windows_device_files = (
     "CON",
@@ -164,3 +165,14 @@ def dict2xls(tabinfo_list, xlspath):
       for cc in rr:
         cc.alignment = styles.Alignment(horizontal='center', vertical='center', wrapText=True)
   wb.save(xlspath)
+
+class MyEncoder(json.JSONEncoder):
+  def default(self, obj):
+    if isinstance(obj, np.integer):
+      return int(obj)
+    elif isinstance(obj, np.floating):
+      return float(obj)
+    elif isinstance(obj, np.ndarray):
+      return obj.tolist()
+    else:
+      return super(MyEncoder, self).default(obj)

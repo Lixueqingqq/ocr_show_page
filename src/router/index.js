@@ -19,6 +19,7 @@ import Router from 'vue-router'
 import Test from '@/components/test'
 import appID from '@/components/appID'
 import appBIS from '@/components/appBIS'
+import appSealocr from '@/components/appSealocr'
 
 Vue.use(Router)
 
@@ -38,6 +39,11 @@ export default new Router({
       path: '/appbis',
       name: 'APPTest2',
       component: appBIS
+    },
+    {
+      path: '/sealocr',
+      name: 'APPTest3',
+      component: appSealocr
     }
 
   ]
