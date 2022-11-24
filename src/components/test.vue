@@ -1,135 +1,150 @@
 <template>
-  <div class="main">
-    <div class="left">
-      <el-row style="height:100px; margin-left:0">
-        <el-upload
-          class="upload-demo"
-          action="/api/upload"
-          :multiple="multiple"
-          :on-success="handleAvatarSuccess"
-          :file-list="fileList"
-        >
-          <el-button type="primary">OCR</el-button>
-          <!-- <div slot="tip" class="el-upload__tip">只能上传jpg/png文件，且不超过500kb</div> -->
-        </el-upload>
+  <el-tabs v-model="activeName" style="padding: 5px;">
+    <el-tab-pane label="OCR图片解析" name="ocr">
+      <div class="main">
+        <div class="left">
+          <el-row style="height:100px; margin-left:0">
+            <el-upload
+              class="upload-demo"
+              action="/api/upload"
+              :multiple="multiple"
+              :on-success="handleAvatarSuccess"
+              :file-list="fileList"
+            >
+              <el-button type="primary">上传文件</el-button>
+              <!-- <div slot="tip" class="el-upload__tip">只能上传jpg/png文件，且不超过500kb</div> -->
+            </el-upload>
+          </el-row>
+          <el-row>
+            <el-button type="primary" @click="changeImage(1)">原图</el-button>
+            <el-button type="success" @click="changeImage(2)">
+              文字检测结果
+            </el-button>
+            <el-button type="warning" @click="changeImage(3)">
+              表格检测结果
+            </el-button>
+          </el-row>
+          <el-card class="box-card">
+            <el-carousel
+              ref="carousel1"
+              :interval="5000"
+              arrow="always"
+              v-show="imgSrcType == 1"
+              trigger="click"
+              :autoplay="false"
+              @change="onCarouselChange"
+            >
+              <el-carousel-item
+                v-for="(item, index) in imgSrc"
+                :key="index"
+                :name="index.toString()"
+              >
+                <div style="text-align:right">
+                  <el-button
+                    v-if="!item.suc"
+                    type="primary"
+                    @click="checkResultComment(item.src, 1, index)"
+                  >
+                    检测准确
+                  </el-button>
+                  <el-button
+                    v-if="!item.err"
+                    type="success"
+                    @click="checkResultComment(item.src, 2, index)"
+                  >
+                    检测失误
+                  </el-button>
+                </div>
+                <el-image
+                  :src="item.src"
+                  alt=""
+                  :preview-src-list="[item.src]"
+                  fit="contain"
+                ></el-image>
+              </el-carousel-item>
+            </el-carousel>
+
+            <el-carousel
+              ref="carousel2"
+              :interval="5000"
+              arrow="always"
+              v-show="imgSrcType == 2"
+              trigger="click"
+              :autoplay="false"
+              @change="onCarouselChange"
+            >
+              <el-carousel-item
+                v-for="(item, index) in imgText"
+                :key="index"
+                :name="index.toString()"
+              >
+                <el-image
+                  :src="item"
+                  alt=""
+                  :preview-src-list="[item]"
+                  fit="contain"
+                ></el-image>
+              </el-carousel-item>
+            </el-carousel>
+
+            <el-carousel
+              ref="carousel3"
+              :interval="5000"
+              arrow="always"
+              v-show="imgSrcType == 3"
+              trigger="click"
+              :autoplay="false"
+              @change="onCarouselChange"
+            >
+              <el-carousel-item
+                v-for="(item, index) in imgTable"
+                :key="index"
+                :name="index.toString()"
+              >
+                <el-image
+                  :src="item"
+                  alt=""
+                  :preview-src-list="[item]"
+                  fit="contain"
+                ></el-image>
+              </el-carousel-item>
+            </el-carousel>
+          </el-card>
+        </div>
+        <div class="right">
+          <el-card class="box-card">
+            <div v-for="(item, index) in resultText[activeIndex]" :key="index">
+              <p v-if="item.type == 0">{{ item.content }}</p>
+              <div v-else-if="item.type == 1">
+                <xlsx-view
+                  :url="item.content"
+                  :sheetName="item.name"
+                ></xlsx-view>
+              </div>
+            </div>
+          </el-card>
+        </div>
+      </div>
+    </el-tab-pane>
+    <el-tab-pane label="双层pdf" name="pdf">
+      <div style="padding: 5px;">
         <el-upload
           class="upload-demo"
           action="/api/upload_doublepdf"
           :multiple="multiple"
-          :on-success="handleAvatarSuccess"
-          :file-list="fileList"
+          :on-success="handlePdfSuccess"
+          :on-change="handlePdfChange"
+          :file-list="pdfFileList"
         >
-          <el-button type="primary">双层pdf</el-button>
+          <el-button type="primary">上传文件</el-button>
           <!-- <div slot="tip" class="el-upload__tip">只能上传jpg/png文件，且不超过500kb</div> -->
         </el-upload>
-      </el-row>
-      <el-row>
-        <el-button type="primary" @click="changeImage(1)">原图</el-button>
-        <el-button type="success" @click="changeImage(2)">
-          文字检测结果
+        <el-button v-if="pdfUrl" type="primary" @click="downloadPdf">
+          下载pdf
         </el-button>
-        <el-button type="warning" @click="changeImage(3)">
-          表格检测结果
-        </el-button>
-      </el-row>
-      <el-card class="box-card">
-        <el-carousel
-          ref="carousel1"
-          :interval="5000"
-          arrow="always"
-          v-show="imgSrcType == 1"
-          trigger="click"
-          :autoplay="false"
-          @change="onCarouselChange"
-        >
-          <el-carousel-item
-            v-for="(item, index) in imgSrc"
-            :key="index"
-            :name="index.toString()"
-          >
-            <div style="text-align:right">
-              <el-button
-                v-if="!item.suc"
-                type="primary"
-                @click="checkResultComment(item.src, 1, index)"
-              >
-                检测准确
-              </el-button>
-              <el-button
-                v-if="!item.err"
-                type="success"
-                @click="checkResultComment(item.src, 2, index)"
-              >
-                检测失误
-              </el-button>
-            </div>
-            <el-image
-              :src="item.src"
-              alt=""
-              :preview-src-list="[item.src]"
-              fit="contain"
-            ></el-image>
-          </el-carousel-item>
-        </el-carousel>
-
-        <el-carousel
-          ref="carousel2"
-          :interval="5000"
-          arrow="always"
-          v-show="imgSrcType == 2"
-          trigger="click"
-          :autoplay="false"
-          @change="onCarouselChange"
-        >
-          <el-carousel-item
-            v-for="(item, index) in imgText"
-            :key="index"
-            :name="index.toString()"
-          >
-            <el-image
-              :src="item"
-              alt=""
-              :preview-src-list="[item]"
-              fit="contain"
-            ></el-image>
-          </el-carousel-item>
-        </el-carousel>
-
-        <el-carousel
-          ref="carousel3"
-          :interval="5000"
-          arrow="always"
-          v-show="imgSrcType == 3"
-          trigger="click"
-          :autoplay="false"
-          @change="onCarouselChange"
-        >
-          <el-carousel-item
-            v-for="(item, index) in imgTable"
-            :key="index"
-            :name="index.toString()"
-          >
-            <el-image
-              :src="item"
-              alt=""
-              :preview-src-list="[item]"
-              fit="contain"
-            ></el-image>
-          </el-carousel-item>
-        </el-carousel>
-      </el-card>
-    </div>
-    <div class="right">
-      <el-card class="box-card">
-        <div v-for="(item, index) in resultText[activeIndex]" :key="index">
-          <p v-if="item.type == 0">{{ item.content }}</p>
-          <div v-else-if="item.type == 1">
-            <xlsx-view :url="item.content" :sheetName="item.name"></xlsx-view>
-          </div>
-        </div>
-      </el-card>
-    </div>
-  </div>
+      </div>
+    </el-tab-pane>
+  </el-tabs>
 </template>
 
 <script>
@@ -138,6 +153,7 @@ export default {
   components: { XlsxView },
   data() {
     return {
+      activeName: 'ocr',
       multiple: false,
       fileList: [],
       imgSrc: [],
@@ -149,10 +165,13 @@ export default {
       resultText: [],
       checkResult: {},
       excelData: [],
-      activeIndex: 0
+      activeIndex: 0,
+
+      // pdf
+      pdfFileList: [],
+      pdfUrl: ''
     }
   },
-  mounted() {},
   methods: {
     handleAvatarSuccess(response, file, fileList) {
       if (response.code == 0) {
@@ -207,6 +226,21 @@ export default {
     onCarouselChange(index) {
       console.log('当前活跃的走马灯索引值', index)
       this.activeIndex = index
+    },
+
+    // pdf
+    handlePdfChange(file, fileList) {
+      console.log('pdf改变')
+    },
+    handlePdfSuccess(response, file, fileList) {
+      console.log('handlePdfSuccess')
+      if (response.code === 0) {
+        this.pdfFileList = [file]
+        this.pdfUrl = response.npdf
+      }
+    },
+    downloadPdf() {
+      window.open(this.pdfUrl)
     }
   }
 }
