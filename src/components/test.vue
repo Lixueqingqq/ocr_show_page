@@ -3,10 +3,11 @@
     <el-tab-pane label="OCR图片解析" name="ocr">
       <div class="main">
         <div class="left">
-          <el-row style="height:100px; margin-left:0">
+          <el-row style="height:100px; margin-left:0; margin-top: 0;">
             <el-upload
               class="upload-demo"
               action="/api/upload"
+              accept=".png,.jpg,.jpeg"
               :multiple="multiple"
               :on-success="handleAvatarSuccess"
               :file-list="fileList"
@@ -127,11 +128,13 @@
       </div>
     </el-tab-pane>
     <el-tab-pane label="双层pdf" name="pdf">
-      <div style="padding: 5px;">
+      <div style="padding: 0 5px;">
         <el-upload
           class="upload-demo"
           action="/api/upload_doublepdf"
+          accept=".pdf"
           :multiple="multiple"
+          :before-upload="handlePdfBeforeUpload"
           :on-success="handlePdfSuccess"
           :on-change="handlePdfChange"
           :file-list="pdfFileList"
@@ -140,7 +143,7 @@
           <!-- <div slot="tip" class="el-upload__tip">只能上传jpg/png文件，且不超过500kb</div> -->
         </el-upload>
         <el-button v-if="pdfUrl" type="primary" @click="downloadPdf">
-          下载pdf
+          解析完成，点击此处下载pdf
         </el-button>
       </div>
     </el-tab-pane>
@@ -232,6 +235,10 @@ export default {
     handlePdfChange(file, fileList) {
       console.log('pdf改变')
     },
+    handlePdfBeforeUpload(file, fileList) {
+      console.log('handlePdfBeforeUpload')
+      this.pdfUrl = ''
+    },
     handlePdfSuccess(response, file, fileList) {
       console.log('handlePdfSuccess')
       if (response.code === 0) {
@@ -248,7 +255,7 @@ export default {
 
 <style scoped>
 .main {
-  padding: 5px;
+  padding: 0 5px;
   display: flex;
 }
 .left {
@@ -262,12 +269,12 @@ export default {
 }
 .el-card {
   width: 97%;
-  height: calc(100vh - 185px);
+  height: calc(100vh - 230px);
   border: 1px solid #f1f1f1;
   overflow: auto;
 }
 .right .el-card {
-  height: calc(100vh - 15px);
+  height: calc(100vh - 70px);
   width: 100%;
 }
 /deep/ .right .el-carousel__item {
