@@ -1,13 +1,12 @@
 <template>
   <el-tabs v-model="activeName" style="padding: 5px;">
-    <el-tab-pane label="OCR图片解析" name="ocr">
+    <el-tab-pane label="OCR解析" name="ocr">
       <div class="main">
         <div class="left">
           <el-row style="height:100px; margin-left:0; margin-top: 0;">
             <el-upload
               class="upload-demo"
               action="/api/upload"
-              accept=".png,.jpg,.jpeg"
               :multiple="multiple"
               :on-success="handleAvatarSuccess"
               :file-list="fileList"
@@ -132,7 +131,7 @@
         <el-upload
           class="upload-demo"
           action="/api/upload_doublepdf"
-          accept=".pdf"
+          accept=".pdf,.PDF"
           :multiple="multiple"
           :before-upload="handlePdfBeforeUpload"
           :on-success="handlePdfSuccess"
